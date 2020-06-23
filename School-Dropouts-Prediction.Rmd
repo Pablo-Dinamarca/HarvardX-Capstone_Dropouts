@@ -1,0 +1,837 @@
+---
+title: "School Dropouts Prediction"
+author: "Pablo Dinamarca"
+date: "23/6/2020"
+output:
+  html_document:
+    df_print: kable
+    number_sections: yes
+    theme: cerulean
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+fontsize: 12pt
+geometry:
+- top=25mm
+- bottom=25mm
+- left=25mm
+- right=25mm
+- heightrounded
+highlight-style: pygments
+linkcolor: blue
+mainfont: Arial
+documentclass: report
+sansfont: Verdana
+always_allow_html: yes
+urlcolor: blue
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+My name is Pablo Dinamarca and I am a university student in [Paraguay](https://es.wikipedia.org/wiki/Paraguay). I am currently working on a Public Policy project to improve the educational and health system in Paraguay.
+
+Data science is entering different sectors within public entities. In the case of Paraguay, prediction models can be applied for the sector of the economy, health, politics, and many other fields, which still do not have the resources to prepare them. Undoubtedly, having statistics based on information is key to planning different policies in a more efficient framework or an improvement in the management of State resources, from an educational reform to a change in current monetary policy.
+
+When we study data from developing countries, it is normal to have a limited amount of resources available. Normally the information is usually scarce and incomplete and makes it difficult to analyze them. With this in mind, focus this work on the **prediction of school dropouts** from the data available on the [DGEEC](https://www.dgeec.gov.py/) page, which is the General Directorate of Statistics, Surveys and Censuses of Paraguay.
+
+This entity generates and integrates statistical information and makes it available for free use of the available data. In our case **We will take the defections of the year 2017 as a base and we will try to predict those of 2018.** Available in the [DGEEC](https://www.dgeec.gov.py/microdatos/microdatos.php).
+
+We will make predictions of school dropouts applying statistical models and using the caret's package to create the algorithms in RStudio. Below, I leave you some interesting statistics of Paraguay with current data.
+
+Paraguay is one of the smallest countries in Latin America with only 406,752 km² of territory approx. and with 7,252,672 inhabitants approx. The population of women is approximately 3,599,516. and men 3,653,156 approx. 62.5% of the population lives in the urban area and 37.5% in the rural area.
+
+When analyzing the population by age groups, there are 2,096,464 girls, boys and adolescents (0-14 years old), 1,954,150 young people (15-29 years old), 2,715,396 adults (30-64 years old) and 486,662 adults. older (65 years and over).
+
+Life expectancy at birth will be 74.7 years old: 77.7 years old for women and 71.8 years old for men. Data from the [dgeec](https://www.dgeec.gov.py/news/news-contenido.php?cod-news=402).
+
+## REG02_EPHC_ANUAL Dataset  
+
+The database that we will use is called REG02_EPHC_ANUAL_2017 for predictors variables and REG02_EPHC_ANUAL_2018 for validation set, which has a Spanish [dictionary](https://www.dgeec.gov.py/microdatos/microdatos.php) with the information of the parameters and the variables it contains.
+
+1. The EPHC_2017 count with 73643 observation  and 218 variables.
+
+1. The EPHC_2018 count with 55453 observation  and 218 variables. 
+
+Of the 218 variables, we will take some that we consider most relevant to create our Machine Learning model. Keep in mind that the dataset is completely in Spanish so we advise you to have a web tool such as the [Google Translator](https://translate.google.com/?hl=es-419&tab=TT) at hand.
+
+## Model Evaluation
+
+To evaluate any machine learning algorithms we must compare the predicted value with the actual result and measure the error between them using a loss function.
+
+In our case, the EPHC dataset is unbalanced (as we will see later), so we must use a function that minimizes the error taking that into account.
+
+The function that we will use is called **F1-Score** and the idea is that the precision of the models must be as close as possible to 1.
+
+## Process and workflow
+
+Our work process will consist of the following steps:
+
+1. Data Preparation: Download, analyze, modify and prepare the data to be processed and modeled.
+
+1. Data exploration: explore the data by creating graphs, tables and stradistic summaries to understand the characteristics, the relationship and the predictors it contains.
+
+1. Data Cleaning: In this section, unnecessary data is removed and data sets are ready to start modeling.
+
+1. Data analysis and modeling: Models are created from the modified data sets that are evaluated with the F1-Score and the final results are presented.
+
+1. Final report: the report, its implications and possible future uses are exposed.
+
+# Data preparation
+
+In this section, we download and divide the dataset for use in the analysis. Please note that we will use two datasets.
+
+1. EPHC_2017 for training data.
+
+1. EPHC_2018 for test data.
+
+## Load the data
+
+We first downloaded the data sets from the DGEEC website. The training set will be called "Data" with the 2017 data and the validation set will be called "Validation" with the 2018 data.
+
+We select some variables that seem relevant to us to generate our models. Note that the number of variables will depend on the computing capacity, so we only selected 9 in this project of which 7 we use to predict and 2 to create the variable to predict `Drop_out`.
+
+```{r warning=FALSE, message=FALSE}
+# Note: this process could take a couple of minutes
+
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(hrbrthemes)) install.packages("data.table", repos = "http://cran.us.r-project.org")
+if(!require(haven)) install.packages("lubridate", repos = "http://cran.us.r-project.org")
+if(!require(plotly)) install.packages("plotly", repos = "http://cran.us.r-project.org")
+if(!require(lubridate)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(MLmetrics)) install.packages("plotly", repos = "http://cran.us.r-project.org")
+
+# REG02_EPHC_ANUAL_2017.SAV dataset and 2018:
+# https://www.dgeec.gov.py/microdatos/microdatos.php
+
+dl <- tempfile()
+download.file("https://www.dgeec.gov.py/microdatos/register/EPHC-ANUAL/REG02_EPHC_ANUAL_2017.SAV", dl)
+
+dl <- tempfile()
+download.file("https://www.dgeec.gov.py/microdatos/register/EPHC-ANUAL/REG02_EPHC_ANUAL_2018.SAV", dl)
+
+EPHC_2017 <- read_sav("REG02_EPHC_ANUAL_2017.SAV")
+EPHC_2018 <- read_sav("REG02_EPHC_ANUAL_2018.SAV")
+
+#--------------------------------#
+# Create Data and Validation set #
+#--------------------------------#
+
+# Select some variables.
+
+Data <- EPHC_2017 %>% 
+  select(c("DPTO","AREA","P02","P06","ED01","ED0504","ED10","e01aimde", "ipcm")) %>% 
+  mutate(Drop_out = ifelse(ED0504 < 503 & ED0504 != 409 & !is.na(ED10) & !is.na(ED0504),
+                           "Desertor", "No_Desertor")) %>% filter(!is.na(ipcm) & !is.na(ED01))
+
+Validation <- EPHC_2018 %>% 
+  select(c("DPTO","AREA","P02","P06","ED01","ED0504","ED10", "e01aimde", "ipcm")) %>%
+  mutate(Drop_out = ifelse((ED0504 < 503 & ED0504 != 409 & !is.na(ED10)) & !is.na(ED0504),
+                           "Desertor", "No_Desertor")) %>% filter(!is.na(ipcm) & !is.na(ED01)) 
+
+
+# Observe the Data_set
+glimpse(Data)
+```
+
+## Modify the data
+
+If we look at the dataset, we can see that it contains some coded variables that we could convert into factors. This helps us generate graphs by levels and makes it easier for us to carry out our modeling.
+
+```{r warning=FALSE, message=FALSE}
+#-----------------#
+# Modify the data #
+#-----------------#
+
+# As Factor some variables 
+Data <- Data %>%
+  mutate_at(vars(c("DPTO","P06","AREA", "ED01", "ED0504","ED10","Drop_out")),
+            funs(as_factor(.)))
+
+Validation <- Validation %>%
+  mutate_at(vars(c("DPTO","P06","AREA", "ED01", "ED0504","ED10","Drop_out")),
+            funs(as_factor(.)))
+
+
+# Relevel the possitive variable
+Data$Drop_out <- relevel(Data$Drop_out, "Desertor")
+Validation$Drop_out <- relevel(Validation$Drop_out, "Desertor")
+
+
+# Rename the Variables 
+names(Data) <- c("Department","Area", "Age", "Sex", "Language",
+                 "Grade","Cause","Income", "Income_pc","Drop_out")
+
+names(Validation) <- c("Department","Area", "Age", "Sex", "Language",
+                       "Grade","Cause","Income", "Income_pc","Drop_out")
+```
+
+Finally we create the training and test set to generate our models.
+
+```{r warning=FALSE, message=FALSE}
+# Create the test set and train set
+set.seed(1, sample.kind = "Rounding")
+index <- createDataPartition(Data$Drop_out, times = 1, p = 0.1, list = FALSE)
+test_set <- Data[index,] 
+train_set <- Data[-index,]
+
+
+# Remove Extra Datasets
+rm(EPHC_2017,EPHC_2018, index)
+```
+
+When the model reaches the `F1-Score` goal in the training set, we will apply the model we created with the *Validation* set for the final test.
+
+# Data Exploration
+
+Before starting to build our model, we must study how our data is composed from different points of view and with different variables.
+
+## Pre-visualize the Data
+
+```{r message=FALSE, warning=FALSE}
+# Pre-visualize the Data
+names(Data)
+head(Data, 5)
+dim(Data)
+class(Data)
+summary(Data)
+glimpse(Data)
+```
+
+We can describe the variables that we will use in our model:
+
+1. Department: Paraguay is divided into 17 departments, to give you an idea, the departments are like the states in the United States.
+
+2. Area: We can notice two important areas, urban and rural.
+
+3. Sex: In this case Men = `Hombres` and Women = `Mujeres`.
+
+4. Language: In Paraguay we have two important languages, Spanish = `Castellano` and Guaraní. Some people speak a mix of them and we call it jopara.
+
+5. Grade: The different levels of education are defined in this variable. In our case we will focus on school levels.
+
+6. Cause: It refers to the reasons why they drop out of school. Where we will see variables such as lack of resources or family reasons.
+
+7. Income: They are the income declared monthly.
+
+8. Income_pc: They are the income distributed per capita.
+
+9. Drop_out: This is the variable that we will try to predict for the year 2018. In this is found who are deserters `Desertor` and who are not `No_Desertor`.
+
+```{r message=FALSE, warning=FALSE}
+# View some tables
+table(Data$Sex)
+table(Data$Area)
+Datades <- table(Data$Drop_out)
+Valdes <- table(Validation$Drop_out)
+
+Desertor_Data <- Datades[1]/Datades[2]
+Desertor_Val <- Valdes[1]/Valdes[2]
+Desertor_Data
+Desertor_Val
+
+
+rm(Datades, Valdes)
+```
+
+When we look at the Data tables and dropout validation, we notice that the dataset is clearly unbalanced.
+
+## Exploration by each feature
+
+### Desertion by Department
+
+If we look at the graph and table below, we will see that the departments with the largest population also tend to have the highest number of deserters.
+
+```{r message=FALSE, warning=FALSE}
+Desertion <- as.data.frame(table(select(Data, Department, Drop_out))) %>%
+  ggplot(aes(Freq, Department, color=Drop_out)) +
+  geom_point(alpha=0.9) +
+  ggtitle("School Dropout") +
+  theme_ipsum() +
+  theme(plot.title = element_text(size=15))
+ggplotly(Desertion)
+
+# Department by population
+table(as.data.frame(Data$Department))
+```
+
+### Desertion by Area
+
+```{r message=FALSE, warning=FALSE}
+Desertion <- as.data.frame(table(select(Data, Area, Drop_out))) %>%
+  ggplot(aes(Freq, Area, color=Drop_out)) +
+  geom_point(alpha=0.9) +
+  ggtitle("School Dropout") +
+  theme_ipsum() +
+  theme(plot.title = element_text(size=15))
+ggplotly(Desertion)
+
+Data %>% ggplot(aes(Area, fill=Drop_out)) + geom_bar(alpha=0.9) +
+  ggtitle("School Dropout") +
+  theme_ipsum() +
+  theme(plot.title = element_text(size=15)) + 
+  xlab("Area") +
+  ylab("Data")
+
+Des <- as.data.frame(table(select(Data, Area, Drop_out)))
+Des
+
+# Desertor in percentage by Area
+data.frame(Urbana = (Des$Freq[1]/(Des$Freq[1]+Des$Freq[3]))*100, 
+           Rural = (Des$Freq[2]/(Des$Freq[2]+Des$Freq[4]))*100)
+```
+
+When looking at the graphs we clearly notice that the rural area tends to have more school dropouts and with the tables we affirm our observations.
+
+### Desertion by Age
+
+```{r message=FALSE, warning=FALSE}
+Data %>% 
+  ggplot(aes(Age, fill=Drop_out)) + geom_histogram(color="#e9ecef", alpha=0.9) +
+  ggtitle("School Dropout") +
+  theme_ipsum() +
+  theme(plot.title = element_text(size=15))
+
+only_Des <- Data %>% filter(Drop_out=="Desertor")
+
+Desertion <- as.data.frame(table(only_Des$Age)) %>% 
+  filter(Freq > 100) %>% 
+  ggplot(aes(Var1,Freq)) + geom_point(fill="#69b3a2", alpha=0.9) +
+  ggtitle("School Dropout") +
+  theme_ipsum() +
+  theme(plot.title = element_text(size=15)) + 
+  xlab("Age") +
+  ylab("Data")
+ggplotly(Desertion)
+
+as.data.frame(table(only_Des$Age)) %>% filter(Freq > 100) %>% arrange(-Freq) %>% head(5)
+```
+
+This graph is interesting since we visualize a timeline created with the age of the people. We can calculate the number of deserters by age and, as expected, the generation that currently has 20 years deserted less than the generation that currently has 40.
+
+### Desertion by Sex
+
+```{r message=FALSE, warning=FALSE}
+Data %>% ggplot(aes(Sex, fill=Drop_out)) + geom_bar(alpha=0.9) +
+  ggtitle("School Dropout") +
+  theme_ipsum() +
+  theme(plot.title = element_text(size=15)) + 
+  xlab("Sex") +
+  ylab("Data")
+
+Des <- as.data.frame(table(select(Data, Sex, Drop_out)))
+Des
+
+# Desertor in percentage
+data.frame(Man = (Des$Freq[1]/(Des$Freq[1]+Des$Freq[3]))*100, 
+           Woman = (Des$Freq[2]/(Des$Freq[2]+Des$Freq[4]))*100)
+```
+
+We can note that school dropouts are not due to gender, although we also note that men dropped out a little more than women.
+
+### Desertion by Language
+
+```{r message=FALSE, warning=FALSE}
+Data %>% ggplot(aes(Language, fill=Drop_out)) + geom_bar(alpha=0.9) +
+  ggtitle("School Dropout") +
+  theme_ipsum() +
+  theme(plot.title = element_text(size=15)) + 
+  xlab("Language") +
+  ylab("Data") + coord_flip()
+
+Data %>% ggplot(aes(Area, fill=Language)) + geom_bar() +
+  ggtitle("School Dropout") +
+  theme_ipsum() +
+  theme(plot.title = element_text(size=15)) + 
+  xlab("Area") +
+  ylab("Data")
+```
+
+The Language by Area chart demonstrates an interesting reality in Paraguay. Most of the population living in rural areas tend to speak in more closed Guarani and those in urban areas tend to speak [jopara](https://es.wikipedia.org/wiki/Yopar%C3%A1) or Spanish.
+
+### Desertion by Grade
+
+```{r message=FALSE, warning=FALSE}
+Grade_Des <- as.data.frame(table(Data$Grade, Data$Drop_out)) %>% 
+  filter(Freq > 2000)
+
+names(Grade_Des) <- c("Grade","Drop_out", "Count")
+
+Grade_Des %>% 
+  ggplot(aes(Count, Grade, color=Drop_out)) +
+  geom_point(alpha=0.9) +
+  ggtitle("School Dropout") +
+  theme_ipsum() +
+  theme(plot.title = element_text(size=15))
+
+Grade_Des %>% filter(Grade=="Educ. Escolar Básica 6°")
+```
+
+We note that for some reason people tend to drop out more in 6th grade than in others, in fact, there are more 6th grade dropouts(Desertores) than No_Dropouts(No_Desertores).
+
+### Desertion by Cause
+
+```{r message=FALSE, warning=FALSE}
+Causa <- Data %>% select(Cause,Sex) %>% table()  %>% as.data.frame()
+
+Causa %>% 
+  ggplot(aes(Freq, Cause, color=Sex)) +
+  geom_point(alpha=0.9) +
+  ggtitle("School Dropout") +
+  theme_ipsum() +
+  theme(plot.title = element_text(size=15))
+
+as.data.frame(table(Data$Cause, Data$Sex)) %>% filter(Freq>1000) %>% arrange(Var2, -Freq)
+```
+
+Here we list the main reasons why people drop out of school and note some gender differences.
+
+We note that both men and women drop out for reasons such as lack of resources at home or need to work, however, there are many men who do not want to study and women who do not have an institution nearby or for family reasons.
+
+### Desertion by Income
+
+```{r message=FALSE, warning=FALSE}
+Data %>% 
+  ggplot(aes(Age, Income, color=Drop_out)) +
+  geom_point(alpha=0.9) +
+  ggtitle("School Dropout") +
+  theme_ipsum() +
+  theme(plot.title = element_text(size=15))
+
+Data %>% 
+  ggplot(aes(x=Sex, y=Income, color=Drop_out)) +
+  geom_boxplot(alpha=0.9) +
+  ggtitle("School Dropout") +
+  scale_y_log10() +
+  theme_ipsum() +
+  theme(plot.title = element_text(size=15))
+```
+
+In the first graph we can see the distribution of income by age and classified by dropout. We note that dropouts tend to have less income than non-dropouts.
+
+In the second graph, we note a slight difference between men's wages compared to women's. We can see that male dropouts tend to earn slightly more than women.
+
+### Desertion by Income per capita
+
+```{r message=FALSE, warning=FALSE}
+Data %>% 
+  ggplot(aes(x=Area, y=Income_pc, color=Drop_out)) +
+  geom_boxplot(alpha=0.9) +
+  ggtitle("School Dropout") +
+  scale_y_log10() +
+  theme_ipsum() +
+  theme(plot.title = element_text(size=15))
+
+```
+
+In this comparison, the Rural area tend to have less income than in the urban area.
+
+# Data Cleaning
+
+Now it is time to remove extra variables that will not be useful in our modeling.
+
+## Remove extra variable
+```{r message=FALSE, warning=FALSE}
+# Remove extra variable
+rm(Causa, Desertion, only_Des, Grade_Des, Des)
+```
+
+
+# Modeling to Use
+
+We will describe a little the different statistical models that we will use in our model. We will not go into details about each of them since the train function of the caret's package does the most work for us, but if you want to delve further I recommend you visit the [Available Models](https://topepo.github.io/caret/available-models.html).
+
+## Logistic Regression
+
+$$p(x)=Pr(Y=1|X=x)=\beta _{0}+\beta _{1}x$$
+
+Where the probability of an event $x$ occurring is given by the probability that the event $Y=1$ as long as $X=x$ (the available data) which is equal to $\beta _{0}$ (which is the starting point) and $\beta _{1}$ (which is the data classifier).
+
+It is used to model the probability that a certain class or event exists $p(x)=Pr(Y=1|X=x)$. This can be extended to model various kinds of events $\beta _{0}+\beta _{1}x+...+\beta _{n}x$. Each object detected in the image will be assigned a probability between 0 and 1, with a sum of one.
+For examples when you need to predict a Binary outcome like pass or fail, you can take pass=1 and fail=0 and calculate the $Pr(Y=1|X=x)$.
+
+Representation: Straight (or plane or hyperplane)
+
+Evaluation: Logistical loss
+
+Optimization: Estimation by maximum likelihood
+
+
+## Linear Discriminant Analysis
+
+Linear discriminant analysis (LDA) is a generalization of Fisher's linear discriminant, a method used in statistics, pattern recognition, and machine learning to find a linear combination of features that characterizes or separates two or more classes of objects or events. The resulting combination may be used as a linear classifier, or, more commonly, for dimensionality reduction before later classification.
+
+In a few words LDA is a dimensionality reduction technique. As the name implies dimensionality reduction techniques reduce the number of dimensions (variables) in a dataset while retaining as much information as possible.
+
+This [article](https://towardsdatascience.com/linear-discriminant-analysis-in-python-76b8b17817c2#:~:text=Linear%20Discriminant%20Analysis%20(LDA)%20is,as%20much%20information%20as%20possible) show a great example about this. 
+
+## Quadratic Discriminant Analysis
+
+The QDA is statistical classifier that uses a quadratic decision surface to separate measurements of two or more classes of objects or events.
+
+Quadratic discriminant analysis (QDA) is closely related to linear discriminant analysis (LDA), where it is assumed that the measurements from each class are normally distributed. Unlike LDA however, in QDA there is no assumption that the covariance of each of the classes is identical.
+
+## Flexible Discriminant Analysis
+
+Flexible Discriminant Analysis is a classification model based on a mixture of linear regression models, which uses optimal scoring to transform the response variable so that the data are in a better form for linear separation, and multiple adaptive regression splines to generate the discriminant surface.
+
+Fisher's linear discriminant analysis is a valuable tool for multigroup classi cation. With a large number of predictors, one can nd a reduced number of discriminant coordinate functions that are optimal for separating the groups.
+
+You can find more information [here](https://www.researchgate.net/publication/2889611_Flexible_Discriminant_Analysis_by_Optimal_Scoring).
+
+## Random Forest
+
+The random forest is a classification algorithm consisting of many decisions trees. It uses bagging and feature randomness when building each individual tree to try to create an uncorrelated forest of trees whose prediction by committee is more accurate than that of any individual tree.
+
+What do we need in order for our random forest to make accurate class predictions?
+
+1. We need features that have at least some predictive power. After all, if we put garbage in then we will get garbage out.
+
+2. The trees of the forest and more importantly their predictions need to be uncorrelated (or at least have low correlations with each other). While the algorithm itself via feature randomness tries to engineer these low correlations for us, the features we select and the hyper-parameters we choose will impact the ultimate correlations as well.
+
+## Evaluation Results
+
+### F1-Score
+
+In statistical analysis of binary classification, the `F1-Score` is a measure of a test's accuracy. It considers both the precision p and the recall r of the test to compute the score: p is the number of correct positive results divided by the number of all positive results returned by the classifier, and r is the number of correct positive results divided by the number of all relevant samples (all samples that should have been identified as positive).
+
+Here you can see a little example.
+
+```{r message=FALSE, warning=FALSE}
+# Create random variables
+set.seed(1, sample.kind = "Rounding")
+Example <- sample(seq(0,1,0.01), replace = TRUE, 20)
+Actual <- sample(c("Correct", "Incorrect"), 20, replace = TRUE)
+
+# Create the model prediction
+Prediction <- ifelse(Example > 0.50,"Correct","Incorrect")
+
+# Test your model
+Matrix <- confusionMatrix(as.factor(Prediction), as.factor(Actual))$table
+Matrix
+
+# Calculate F1-Score
+Precision_Ex <- Matrix[1]/(Matrix[1]+Matrix[3])
+Recall_Ex <- Matrix[1]/(Matrix[1]+Matrix[2])
+
+F1 <- 2*((Precision_Ex*Recall_Ex)/(Precision_Ex+Recall_Ex))
+F1
+
+# This formula do the same
+F1_Score(as.factor(Prediction), as.factor(Actual))
+```
+
+We have:
+
+```{r message=FALSE, warning=FALSE}
+Matrix
+```
+
+Who contain $TP$ True positive `r Matrix[1]`, $FP$ False positive `r Matrix[3]`,$TN$ True negative 
+`r Matrix[4]`, $FN$ False negative `r Matrix[2]`
+
+You can calculate:
+
+$$\mathrm {precision}= {\frac {TP} {TP+FP}}$$
+and also:
+
+$$\mathrm {recall}= {\frac {TP} {TP+FN}}$$
+and apply the F1_Score to evaluate your model presition.
+
+$${\displaystyle F_{1}=2\cdot {\frac {\mathrm {precision} \cdot \mathrm {recall} }{\mathrm {precision} +\mathrm {recall} }}}$$
+
+Here we define the loss functions:
+```{r message=FALSE, warning=FALSE}
+# F1-Score
+f1 <- function(data, lev = NULL, model = NULL) {
+  f1_val <- F1_Score(y_pred = data$pred, y_true = data$obs, positive = lev[1])
+  c(F1 = f1_val)
+}
+
+# Remove example variables
+rm(Matrix, Example, Actual, Prediction, Precision_Ex, Recall_Ex, F1)
+```
+
+## Parameters
+
+### Model - Class Weights
+
+When faced with classification tasks in the real world, it can be challenging to deal with an outcome where one class heavily outweighs the other (imbalanced classes). So we need to apply methods to improve performance on imbalanced data.
+
+In this project we include Class weights: impose a heavier cost when errors are made in the minority class.
+
+Here we define the Class Weights:
+```{r}
+Model_W <- function(data) {
+  ifelse(data$Drop_out == "Desertor",
+         (1/table(data$Drop_out)[1]) * 0.5,
+         (1/table(data$Drop_out)[2]) * 0.5)
+}
+```
+
+### Cross Validation
+
+One round of cross-validation involves partitioning a sample of data into complementary subsets, performing the analysis on one subset (called the training set), and validating the analysis on the other subset (called the validation set or testing set). To reduce variability, in most methods multiple rounds of cross-validation are performed using different partitions, and the validation results are combined (averaged) over the rounds to give an estimate of the model's predictive performance. It is mainly used in settings where the goal is prediction, and one wants to estimate how accurately a predictive model will perform in practice.
+
+## Caret's - train function
+
+This function sets up a grid of tuning parameters for a number of classification and regression routines, fits each model and calculates a resampling based performance measure.
+
+When we run the model, the train function takes the values we gave it to predict and converts them to numerical factors to run the models. For example, if the variable is sex, the train function automatically takes 1 = male and 2 = female to train the classification models.
+
+Another parameter it uses is trcontrol, which is a list of values that define how this function works. Here we define the use of cross validation for example.
+
+# Data analysis and Modeling
+
+We will train the models using the caret package and the training function. We will follow the following modeling order:
+
+1. First we will create a model with simple logistic regression and another adjusted by weights to compare the improvement of the algorithm.
+
+2. We will apply a formula to train 4 of the 5 available models. Due to limitations in computing capacity, we calculate the fda without taking into account the weights and separately. Then we compare it with the other models.
+
+3. Once you have selected the best prediction model, we train the final algorithm with the Validation set. To finish, we compared the model with random sampling to compare it.
+
+Keep in mind that while training the model we will also compare other metric such as Accuracy with F1_Score.
+
+In addition, we will expose the metrics that the train function selected for some models, using cross validation of 3 fold. This method is called **K-fold crossvalidation**.
+
+## Logistic Regression
+
+```{r message=FALSE, warning=FALSE}
+# Create the fit model with glm.
+fit_glm <- train(Drop_out ~ Age + Department + Sex + Area + Income + Income_pc + Language, 
+                 data = train_set, 
+                 method = "glm",
+                 metric = "F1",
+                 trControl = trainControl(method = "cv",
+                                          number = 3,
+                                          classProbs = TRUE,
+                                          summaryFunction = f1))
+
+
+fit_glm$result
+
+# Test the model with Test_data.
+Matrix_glm <- confusionMatrix(predict(fit_glm, test_set), test_set$Drop_out, mode = "prec_recall")
+
+Model_Results <- tibble(Method="Logistic_Regression", 
+                        F1_Score = Matrix_glm$byClass["F1"],
+                        Accuracy = Matrix_glm$byClass["Balanced Accuracy"])
+
+# Saw the Results
+data.frame(Model_Results)
+```
+
+## Logistic Regression by Weights
+
+```{r message=FALSE, warning=FALSE}
+# Create the fit model with glm.
+fit_glm <- train(Drop_out ~ Age + Department + Sex + Area + Income + Income_pc + Language, 
+                 data = train_set, 
+                 method = "glm",
+                 metric = "F1",
+                 weights = Model_W(train_set),
+                 trControl = trainControl(method = "cv",
+                                          number = 3,
+                                          classProbs = TRUE,
+                                          summaryFunction = f1))
+
+
+fit_glm$result
+
+# Test the model with Test_data.
+Matrix_glm <- confusionMatrix(predict(fit_glm, test_set), test_set$Drop_out, mode = "prec_recall")
+
+Model_Results <- bind_rows(Model_Results,
+                           tibble(Method="LR_Weights", 
+                                  F1_Score = Matrix_glm$byClass["F1"],
+                                  Accuracy = Matrix_glm$byClass["Balanced Accuracy"]))
+
+# Saw the Results
+data.frame(Model_Results)
+```
+
+We noticed a significant improvement when adjusting the model with weights.
+
+## All Models
+
+As you can see, all the models will follow a similar encoding parameter so we will adjust the algorithms with functions that all the models generate.
+
+```{r message=FALSE, warning=FALSE}
+# Note: this process could take a couple of minutes
+
+# Select the model to predict.
+models <- c("glm", "lda", "qda", "rf")
+
+
+# Create the fit model with different models.
+fits <- lapply(models, function(model){ 
+  print(model)
+  train(Drop_out ~ Age + Department + Sex + Area + Income + Income_pc, 
+        data = train_set, 
+        method = model,
+        metric = "F1",
+        weights = Model_W(train_set),
+        trControl = trainControl(method = "cv",
+                                 number = 3,
+                                 classProbs = TRUE,
+                                 summaryFunction = f1))
+})
+
+names(fits) <- models
+
+# Test the model with Validation set.
+Matrix_Models <- sapply(fits, function(fits){ 
+  confusionMatrix(predict(fits, newdata = test_set), 
+                  test_set$Drop_out, mode = "prec_recall")$byClass["F1"]
+})
+
+Matrix_Acc <- sapply(fits, function(fits){ 
+  confusionMatrix(predict(fits, newdata = test_set), 
+                  test_set$Drop_out, mode = "prec_recall")$byClass["Balanced Accuracy"]
+})
+
+
+Model_Results <- data.frame(Model=models,
+                               F1_Score=as.factor(Matrix_Models),
+                               Accuracy=as.factor(Matrix_Acc)) %>% arrange(desc(F1_Score))
+
+# Saw the Results
+Model_Results
+```
+
+
+## Flexible Discriminant Analysis
+
+Note: For computing problems we need to do the fda modeling without the weights.
+
+```{r message=FALSE, warning=FALSE}
+# Create the fit model with fda.
+fit_fda <- train(Drop_out ~ Age + Department + Sex + Area + Income + Income_pc + Language, 
+                 data = train_set, 
+                 method = "fda",
+                 metric = "F1",
+                 trControl = trainControl(method = "cv",
+                                          number = 3,
+                                          classProbs = TRUE,
+                                          summaryFunction = f1))
+
+
+fit_fda$result
+
+# Test the model with Test_data.
+Matrix_fda <- confusionMatrix(predict(fit_fda, test_set), test_set$Drop_out, mode = "prec_recall")
+
+Model_Results <- bind_rows(Model_Results,
+                           data.frame(Model="fda", 
+                                  F1_Score = as.factor(Matrix_fda$byClass["F1"]),
+                                  Accuracy = as.factor(Matrix_fda$byClass["Balanced Accuracy"]))) %>% arrange(desc(F1_Score))
+
+# Saw the Results
+Model_Results
+```
+
+As you can see, Accuracy overestimate the model by not taking into account the data imbalance. `r Desertor_Data` for deserters and` r 1-Desertor_Data` for non-deserters from the Data set.
+
+## Remove extra variables
+
+Remove all unnecessary variables to assess the final model with Validation set.
+
+```{r message=FALSE, warning=FALSE}
+rm(fit_glm, fit_s, fits, F1_s, fit_fda,
+   Matrix_glm, Matrix_s, Matrix_Models, Matrix_fda,
+   train_set, test_set, models,
+   Model_Results)
+```
+
+# Final Validation
+
+Now is time to train the best model with all Data and test with Validation.
+
+```{r message=FALSE, warning=FALSE}
+# Create the fit model with fda.
+fit <- train(Drop_out ~ Age + Department + Sex + Area + Income + Income_pc + Language, 
+             data = Data, 
+             method = "fda",
+             metric = "F1",
+             trControl = trainControl(method = "cv",
+                                      number = 3,
+                                      classProbs = TRUE,
+                                      summaryFunction = f1))
+
+
+fit$result
+
+# Test the model with Validation set.
+Matrix <- confusionMatrix(predict(fit, Validation), Validation$Drop_out, mode = "prec_recall")
+
+Model_Result <- tibble(Method="FDA", 
+                       F1_Score = Matrix$byClass["F1"])
+
+# Saw the Results
+data.frame(Model_Result)
+```
+
+## Compare the model with a sample.
+
+We take a base line model to compare the results.
+
+```{r message=FALSE, warning=FALSE}
+# By Sample
+set.seed(1, sample.kind = "Rounding")
+
+# Create the fit model with a sample.
+fit_s <- sample(c("Desertor", "No_Desertor"), replace = TRUE, nrow(Validation))
+
+F1_s <- F1_Score(Validation$Drop_out, fit_s)
+
+Model_Result <- bind_rows(Model_Result,
+                           tibble(Method="By Sample", 
+                        F1_Score = F1_s))
+
+# Saw the Results
+data.frame(Model_Result)
+```
+
+
+# Final Report
+
+## Conclusion
+
+With this project, we present a 2018 dropout prediction with a hit of `r max(Model_Result$F1_Score)` on a scale of 0 to 1.
+
+The first thing we can notice is that the data is clearly unbalanced with `r Desertor_Val` of deserters in the Validation data, so if we make a prediction based on random samples we only get a precision of
+`r min(Model_Result$F1_Score)` so our model clearly improves the prediction of this dataset.
+
+In addition to this, the expansion factor must be taken into account, since, as these datasets are based on surveys, it must be adjusted by weight to apply it to the population.
+
+In the end we implemented a total of 5 different models of which the fda obtained a higher F1 score, so we implemented this model in the validation dataset to obtain the most optimal result.
+
+In addition, we added parameters such as weight adjustment and cross validation to improve our algorithm. We select a total of 9 variables of which 7 we use to predict and 2 to create the variable to predict `Drop_out`.
+
+It is key to understand that we do not optimize any variable manually, since the train function of the Caret's package performs this process for us. In addition, we compare different metrics with the F1_Score results to demonstrate once again the imbalance of the dataset.
+
+## Limitations
+
+Some of the observations, such as prediction with more variables, can be computationally expensive to perform, in addition to not having all the necessary data.
+
+Please note that the EPHC_2017 data set only has data for approximately 74,000 people. of the 7,000,000 approx. from Paraguay in addition to that EPHC_2018 has even less data (55,000 approx.).
+
+This is a big problem predicting different variables, and therefore perhaps this study is overestimating the precision of the algorithms. To make a more accurate prediction we need to accumulate a larger amount of data.
+
+It should also be noted that this model uses supervised learning, so we must run the model every time the data is updated.
+
+## Future work
+
+We can still improve the model much more, we can add more variables or use other effective techniques such as k-Neighbors or the Naive Bayes, which could obtain better metrics for our model.
+
+Although it is true that the main thing would be to improve Paraguay's data management system, the reality is that there is still a long way to go.
+
+In addition to Caret's package, there are many R libraries that can be downloaded and applied to generate algorithms, some of the most widely used are listed here 
+[R Libraries](https://www.ubuntupit.com/best-r-machine-learning-packages/).
+
+Finally, this project can serve as a basis to implement a school dropout prediction system. But keep in mind that the data should be further explored, consider more variables to predict the models, and adjust the expansion factor of the data with other more effective techniques.
